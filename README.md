@@ -1,21 +1,63 @@
-# vkr-autonomous-robot-navigation2
-Разработка алгоритма построения маршрута и навигации автономного робота 2.
+# ВКР: Разработка алгоритма построения маршрута и навигации автономного мобильного робота
 
-## Запуск основного проекта
+Проект демонстрирует рабочую реализацию глобальной и гибридной навигации на сетке 20x20.
 
+## Состав проекта
+- `src/astar.py` — алгоритм A* (поиск пути, обход препятствий, возврат полного пути).
+- `src/hybrid_planner.py` — гибридный подход: глобальный маршрут A* + локальный обход + replanning.
+- `src/local_navigation.py` — локальная коррекция траектории вблизи препятствий.
+- `src/state_filter.py` — фильтрация (экспоненциальное сглаживание) координат.
+- `src/simulation.py` — запуск 3 сценариев и генерация изображений + метрик.
+- `src/metrics.py` — вычисление длины пути, времени, replans, факта достижения цели.
+- `tests/` — набор unit-тестов.
+- `results/` — выходные изображения и CSV-метрики.
+- `docs/experiment_report.md` — краткий отчёт по экспериментам.
+
+## Установка зависимостей
 ```bash
-python main.py
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+pip install -r requirements.txt
 ```
 
-## Запуск в CoppeliaSim
-
-1. Установите CoppeliaSim (с поддержкой ZeroMQ Remote API).
-2. Откройте подготовленную сцену (см. `coppeliasim/SCENE_SETUP.md`).
-3. Запустите симуляцию в CoppeliaSim.
-4. Выполните:
-
+## Запуск симуляции
 ```bash
-python coppeliasim/coppelia_controller.py
+python src/simulation.py
 ```
 
-Скрипт подключится к CoppeliaSim, получит объект `robot`, передаст маршрут (точки A* из `results/astar_path.txt`, если файл существует), пошагово переместит робота и сохранит метрики в `results/coppelia_metrics.txt`.
+После запуска будут созданы/обновлены файлы:
+- `results/scenario_1_static.png`
+- `results/scenario_2_obstacles.png`
+- `results/scenario_3_dynamic.png`
+- `results/metrics.csv`
+
+## Запуск тестов
+```bash
+pytest -q
+```
+
+## Формат метрик
+`results/metrics.csv`:
+
+```csv
+scenario,algorithm,path_length,runtime_sec,replans,reached_goal
+```
+
+Для каждого из 3 сценариев сохраняются строки для двух алгоритмов: `A*` и `hybrid`.
+
+
+## Гибридная реализация алгоритма навигации
+В проект добавлен отдельный контроллер `coppeliasim/coppelia_controller.py` для демонстрации гибридной навигации в CoppeliaSim.
+
+- **Глобальное планирование**: A* строит маршрут на дискретной карте-сетке (0 — свободно, 1 — препятствие).
+- **Локальная коррекция**: при появлении динамического препятствия на траектории запускается перестроение маршрута (replan) от текущей позиции.
+- **Фильтрация состояния**: функция `filter_state` сглаживает координаты робота для более плавного перемещения.
+- **Визуальная проверка**: CoppeliaSim отображает препятствия, точки маршрута и движение робота `/robot`.
+- **Сохранение метрик**: результаты выполнения сохраняются в `results/coppelia_metrics.txt`.
+
+### Запуск CoppeliaSim-демонстрации (Windows CMD)
+```cmd
+python coppeliasim\coppelia_controller.py
+```
+
+Подробная инструкция по подготовке сцены находится в `coppeliasim/SCENE_SETUP.md`.
