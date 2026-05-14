@@ -12,7 +12,7 @@ GridPoint = Tuple[int, int]
 SCALE = 0.22
 X_OFFSET = -2.1
 Y_OFFSET = 2.1
-ROBOT_Z = 0.138
+ROBOT_Z = 0.16
 
 
 def create_grid() -> List[List[int]]:
@@ -26,6 +26,8 @@ def create_grid() -> List[List[int]]:
     for r in range(9, 17):
         grid[r][12] = 1
     grid[13][12] = 0
+    for c in range(2, 6):
+        grid[14][c] = 1
     return grid
 
 
@@ -98,28 +100,88 @@ def clear_demo_objects(sim) -> None:
             sim.removeObject(handle)
             idx += 1
 
+    for single in ("/start_marker", "/goal_marker"):
+        try:
+            sim.removeObject(sim.getObject(single))
+        except Exception:
+            pass
 
-def create_obstacle_cube(sim, idx: int, cell: GridPoint) -> None:
-    cube = sim.createPrimitiveShape(sim.primitiveshape_cuboid, [0.18, 0.18, 0.18], 0)
+
+def scene_center_for_rect(r0: int, c0: int, h: int, w: int, z: float) -> List[float]:
+    center_row = r0 + (h - 1) / 2.0
+    center_col = c0 + (w - 1) / 2.0
+    return [center_col * SCALE + X_OFFSET, -center_row * SCALE + Y_OFFSET, z]
+
+
+def build_obstacle_rectangles(grid: List[List[int]]) -> List[Tuple[int, int, int, int]]:
+    rows = len(grid)
+    cols = len(grid[0])
+    used = [[False] * cols for _ in range(rows)]
+    rects: List[Tuple[int, int, int, int]] = []
+
+    for r in range(rows):
+        c = 0
+        while c < cols:
+            if grid[r][c] != 1 or used[r][c]:
+                c += 1
+                continue
+            w = 1
+            while c + w < cols and grid[r][c + w] == 1 and not used[r][c + w]:
+                w += 1
+            h = 1
+            grow = True
+            while r + h < rows and grow:
+                for cc in range(c, c + w):
+                    if grid[r + h][cc] != 1 or used[r + h][cc]:
+                        grow = False
+                        break
+                if grow:
+                    h += 1
+            for rr in range(r, r + h):
+                for cc in range(c, c + w):
+                    used[rr][cc] = True
+            rects.append((r, c, h, w))
+            c += w
+    return rects
+
+
+def create_obstacle_block(sim, idx: int, rect: Tuple[int, int, int, int]) -> None:
+    r0, c0, h, w = rect
+    sx = max(0.18, w * SCALE * 0.92)
+    sy = max(0.18, h * SCALE * 0.92)
+    sz = 0.20
+    cube = sim.createPrimitiveShape(sim.primitiveshape_cuboid, [sx, sy, sz], 0)
     sim.setObjectAlias(cube, f"obstacle_{idx}")
-    sim.setShapeColor(cube, None, sim.colorcomponent_ambient_diffuse, [0.9, 0.2, 0.2])
-    sim.setObjectPosition(cube, -1, grid_to_scene(cell, z=0.09))
-    print(f"[coppeliasim] создано препятствие obstacle_{idx} в клетке {cell}")
+    sim.setShapeColor(cube, None, sim.colorcomponent_ambient_diffuse, [0.7, 0.12, 0.12])
+    sim.setObjectPosition(cube, -1, scene_center_for_rect(r0, c0, h, w, z=0.10))
+    print(f"[coppeliasim] создано препятствие obstacle_{idx} блоком ({r0},{c0}) {h}x{w}")
 
 
 def create_dynamic_obstacle(sim, idx: int, cell: GridPoint) -> None:
-    cube = sim.createPrimitiveShape(sim.primitiveshape_cuboid, [0.2, 0.2, 0.2], 0)
-    sim.setObjectAlias(cube, f"dynamic_obstacle_{idx}")
-    sim.setShapeColor(cube, None, sim.colorcomponent_ambient_diffuse, [0.2, 0.3, 0.9])
-    sim.setObjectPosition(cube, -1, grid_to_scene(cell, z=0.10))
+    block = sim.createPrimitiveShape(sim.primitiveshape_cuboid, [0.20, 0.20, 0.20], 0)
+    sim.setObjectAlias(block, f"dynamic_obstacle_{idx}")
+    sim.setShapeColor(block, None, sim.colorcomponent_ambient_diffuse, [0.2, 0.3, 0.9])
+    sim.setObjectPosition(block, -1, grid_to_scene(cell, z=0.10))
     print(f"[coppeliasim] создано препятствие dynamic_obstacle_{idx} в клетке {cell}")
 
 
 def create_point_marker(sim, idx: int, cell: GridPoint) -> None:
-    marker = sim.createPrimitiveShape(sim.primitiveshape_spheroid, [0.045, 0.045, 0.045], 0)
+    marker = sim.createDummy(0.05)
     sim.setObjectAlias(marker, f"point_{idx}")
-    sim.setShapeColor(marker, None, sim.colorcomponent_ambient_diffuse, [0.2, 0.8, 0.2])
+    sim.setObjectColor(marker, 0, sim.colorcomponent_ambient_diffuse, [0.2, 0.8, 0.2])
     sim.setObjectPosition(marker, -1, grid_to_scene(cell, z=0.04))
+
+
+def create_start_goal_markers(sim, start: GridPoint, goal: GridPoint) -> None:
+    start_obj = sim.createDummy(0.08)
+    sim.setObjectAlias(start_obj, "start_marker")
+    sim.setObjectColor(start_obj, 0, sim.colorcomponent_ambient_diffuse, [0.15, 0.85, 0.2])
+    sim.setObjectPosition(start_obj, -1, grid_to_scene(start, z=0.05))
+
+    goal_obj = sim.createDummy(0.08)
+    sim.setObjectAlias(goal_obj, "goal_marker")
+    sim.setObjectColor(goal_obj, 0, sim.colorcomponent_ambient_diffuse, [0.95, 0.85, 0.1])
+    sim.setObjectPosition(goal_obj, -1, grid_to_scene(goal, z=0.05))
 
 
 def render_route_points(sim, route: List[GridPoint]) -> None:
@@ -143,6 +205,10 @@ def move_robot_smoothly(sim, robot, from_cell: GridPoint, to_cell: GridPoint, st
         measured = (p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t)
         smooth = filter_state(prev_xy, measured, alpha=0.6)
         sim.setObjectPosition(robot, -1, [smooth[0], smooth[1], ROBOT_Z])
+        try:
+            sim.resetDynamicObject(robot)
+        except Exception:
+            pass
         prev_xy = smooth
         time.sleep(delay)
 
@@ -213,14 +279,16 @@ def main() -> None:
         return
 
     clear_demo_objects(sim)
+    create_start_goal_markers(sim, start, goal)
     sim.setObjectPosition(robot, -1, grid_to_scene(start, z=ROBOT_Z))
+    try:
+        sim.resetDynamicObject(robot)
+    except Exception:
+        pass
 
-    obs_idx = 0
-    for r, row in enumerate(grid):
-        for c, val in enumerate(row):
-            if val == 1:
-                create_obstacle_cube(sim, obs_idx, (r, c))
-                obs_idx += 1
+    rects = build_obstacle_rectangles(grid)
+    for idx, rect in enumerate(rects):
+        create_obstacle_block(sim, idx, rect)
 
     render_route_points(sim, route)
 
