@@ -61,3 +61,6 @@ python coppeliasim\coppelia_controller.py
 ```
 
 Подробная инструкция по подготовке сцены находится в `coppeliasim/SCENE_SETUP.md`.
+
+
+Для CoppeliaSim-демонстрации модель робота в сцене должна называться строго `robot` (маленькими буквами), иначе контроллер не сможет получить объект `/robot`. Метрики запуска сохраняются в `results/coppelia_metrics.txt`.

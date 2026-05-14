@@ -4,3 +4,7 @@ __pycache__/
 
 # Generated simulation artifacts
 results/*.png
+*.mp4
+*.avi
+*.mov
+*.tmp
