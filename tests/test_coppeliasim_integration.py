@@ -69,3 +69,12 @@ def test_coppeliasim_scene_creation_script_contains_required_visual_components()
 
     for term in required_terms:
         assert term in script, f"Scene creation script does not mention required component: {term}"
+
+
+def test_scene_script_avoids_unavailable_drawing_text_and_prefers_primitive_shape() -> None:
+    script = (REPO_ROOT / "coppeliasim" / "create_demo_scene.lua").read_text(encoding="utf-8")
+
+    assert "sim.drawing_text" not in script
+    assert "sim.createPrimitiveShape" in script
+    assert "sim.createPureShape" in script
+    assert "create_dummy" in script
