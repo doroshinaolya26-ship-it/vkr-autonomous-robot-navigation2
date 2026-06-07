@@ -1,0 +1,7 @@
+scenario,algorithm,path_length,runtime_sec,replans,reached_goal
+Scenario 1: static empty,A*,34.0,0.002659,0,1
+Scenario 1: static empty,hybrid,34.0,0.001941,0,1
+Scenario 2: static obstacles,A*,34.0,0.002355,0,1
+Scenario 2: static obstacles,hybrid,35.236,0.001834,0,1
+Scenario 3: dynamic obstacle,A*,2.0,0.000241,0,0
+Scenario 3: dynamic obstacle,hybrid,23.472,0.000753,1,1
